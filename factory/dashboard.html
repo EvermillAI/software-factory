@@ -5,185 +5,210 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Software Factory</title>
 <style>
+  /* Four colours carry meaning and nothing else does: blue is at work, green passed,
+     amber waits or asked for changes, red needs you. Every one is paired with a shape. */
   :root {
-    --bg: #14151b;
-    --panel: #1a1c24;
-    --card: #20222c;
-    --card-hover: #252835;
-    --line: #2b2e3b;
-    --text: #e4e5ea;
-    --muted: #868ba0;
-    --faint: #5b6075;
-    --active: #8be9fd;
-    --pass: #50fa7b;
-    --changes: #ffb86c;
-    --human: #ff5555;
-    --merged: #bd93f9;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color-scheme: dark;
+    --floor: #111316;
+    --panel: #171a1e;
+    --raise: #1f2328;
+    --line: #2a2f36;
+    --line-2: #3d444e;
+    --text: #e6e8eb;
+    --muted: #a4abb5;
+    --faint: #848c97;
+    --accent: #78aeff;
+    --go: #4cc38a;
+    --wait: #e6ab3c;
+    --stop: #f2635c;
+    --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
+  * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+  html { background: var(--floor); }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
-    -webkit-font-smoothing: antialiased;
+    margin: 0; color: var(--text); font: 14px/1.45 var(--body);
+    font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased;
   }
+  ::selection { background: color-mix(in srgb, var(--accent) 38%, transparent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  a { color: inherit; text-underline-offset: 3px; }
   button { font: inherit; color: inherit; }
+  code { font-family: var(--code); font-size: .92em; }
+  .icon {
+    width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor;
+    stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .spin { animation: spin 1.4s linear infinite; transform-origin: center; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } * { transition: none !important; } }
+  .s-run { color: var(--accent); } .s-stop { color: var(--stop); } .s-wait { color: var(--wait); }
+  .s-done { color: var(--go); } .s-off { color: var(--faint); }
 
-  /* Header */
-  header {
-    display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
-    flex-wrap: wrap; padding: 28px 32px 8px;
+  /* Top bar */
+  .bar {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 14px;
+    padding: 10px 24px; background: var(--panel); border-bottom: 1px solid var(--line);
   }
-  h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
-  .status { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .status .dot {
-    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--pass); margin-right: 6px; vertical-align: 1px;
+  .bar h1 { margin: 0; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .live { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .live span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--go); flex: none; }
+  .live.error { color: var(--stop); }
+  .live.error .dot { background: var(--stop); }
+  .seg { margin-left: auto; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 7px; }
+  .seg button {
+    border: 0; background: none; border-radius: 5px; padding: 3px 11px; cursor: pointer;
+    font-size: 13px; color: var(--muted); transition: background .15s, color .15s;
   }
-  .status.error { color: var(--human); }
-  .status.error .dot { background: var(--human); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--raise); color: var(--text); }
+
+  /* Filters: the counts are the summary, and each one narrows the page to that state */
+  .filters { display: flex; align-items: center; gap: 4px; padding: 14px 24px 0; overflow-x: auto; scrollbar-width: none; }
+  .filter {
+    display: flex; align-items: center; gap: 7px; white-space: nowrap; cursor: pointer;
+    border: 1px solid transparent; background: none; border-radius: 6px; padding: 5px 10px;
+    font-size: 13px; color: var(--muted); transition: background .15s, color .15s;
+  }
+  .filter:hover { background: var(--panel); color: var(--text); }
+  .filter[aria-pressed="true"] { background: var(--raise); border-color: var(--line); color: var(--text); }
+  .filter .n { font-size: 12px; color: var(--faint); }
+  .filter.alert, .filter.alert .n { color: var(--stop); }
+  .filter .icon { width: 14px; height: 14px; }
+  .spend { margin-left: auto; padding-left: 16px; font-size: 12px; color: var(--faint); white-space: nowrap; }
+
+  /* List: one bordered sheet per group, a row per job */
+  .board { padding: 4px 24px 40px; }
+  .group h2 {
+    display: flex; align-items: baseline; gap: 8px; margin: 22px 0 8px;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+  }
+  .group h2 .n { font-weight: 400; color: var(--faint); }
+  .list { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .job {
+    display: grid; grid-template-columns: 16px minmax(0, 5fr) minmax(0, 7fr) 13.5em;
+    gap: 3px 14px; align-items: center; padding: 11px 16px; cursor: pointer;
+    border-top: 1px solid var(--line); transition: background .15s;
+  }
+  .job:first-child { border-top: 0; }
+  .job:hover { background: var(--raise); }
+  .job:focus-visible { outline-offset: -2px; border-radius: 8px; }
+  .job.needs-human { background: color-mix(in srgb, var(--stop) 10%, var(--panel)); }
+  .job.needs-human:hover { background: color-mix(in srgb, var(--stop) 15%, var(--panel)); }
+  .what { min-width: 0; }
+  .title { margin: 0; font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ref { display: flex; gap: 10px; margin-top: 1px; font-size: 12px; color: var(--faint); }
+  .ref a { text-decoration: none; }
+  .ref a:hover { color: var(--text); text-decoration: underline; }
+  .job.merged .title, .job.rejected .title { font-weight: 400; color: var(--muted); }
+  .job.rejected .title { text-decoration: line-through; text-decoration-color: var(--faint); }
+  .where { min-width: 0; }
+
+  /* The line a running job moves along. The names stay visible: an unlabelled bar says nothing. */
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; font-size: 12px; color: var(--faint); }
+  .steps li { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .steps li + li::before { content: ""; width: 12px; height: 1px; margin: 0 6px 0 1px; background: var(--line-2); }
+  .steps .icon { width: 12px; height: 12px; }
+  .steps li.done { color: var(--muted); }
+  .steps li.done .icon { color: var(--go); }
+  .steps li.now { color: var(--text); font-weight: 600; }
+  .steps li.now .icon { color: var(--accent); }
+  .says { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 12px; font-size: 12px; color: var(--muted); }
+  .steps + .says { margin-top: 5px; }
+  .says .by { color: var(--faint); }
+  .v { display: inline-flex; align-items: center; gap: 4px; }
+  .v .icon { width: 12px; height: 12px; }
+  .v.PASS .icon { color: var(--go); }
+  .v.CHANGES { color: var(--wait); }
+  .v.FAIL { color: var(--stop); }
+  .v.run .icon { color: var(--accent); }
+  .v.todo { color: var(--faint); }
+  .act {
+    display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 6px;
+    border: 1px solid var(--line-2); background: var(--raise); color: var(--text);
+    font-weight: 500; text-decoration: none; transition: border-color .15s;
+  }
+  a.act:hover { border-color: var(--muted); }
+  .meta { display: flex; align-items: center; justify-content: flex-end; gap: 14px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .meta .time { color: var(--text); min-width: 3.4em; text-align: right; }
+  .risk-high { color: var(--stop); } .risk-medium { color: var(--wait); }
+  .empty { margin: 28px 0; max-width: 46ch; color: var(--muted); }
+  .skel { height: 56px; border-top: 1px solid var(--line); }
+  .skel:first-child { border-top: 0; }
   .banner {
-    margin: 12px 32px 0; padding: 10px 14px; border: 1px solid var(--human);
-    border-radius: 8px; color: var(--human); font-family: var(--mono); font-size: 12px;
+    margin: 14px 24px 0; padding: 9px 13px; border: 1px solid var(--stop); border-radius: 6px;
+    color: var(--stop); font-size: 13px;
   }
 
-  /* Board */
-  .board {
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px;
-    padding: 20px 32px 40px; align-items: start;
+  /* Board: the same jobs, one column per station */
+  .board.kanban {
+    display: grid; grid-template-columns: repeat(7, minmax(214px, 1fr)); gap: 0 12px;
+    align-items: start; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-left: 24px;
   }
-  .col { min-width: 0; }
-  .col-head {
-    display: flex; align-items: center; gap: 8px; padding: 0 2px 10px;
-    border-bottom: 1px solid var(--line); margin-bottom: 12px; position: relative;
+  .kanban .group { min-width: 0; scroll-snap-align: start; }
+  .kanban .list { display: grid; gap: 8px; border: 0; border-radius: 0; background: none; overflow: visible; }
+  .kanban .job {
+    grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 6px 10px; padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
   }
-  .col-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
-  .col-head .who { font-size: 11px; color: var(--faint); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .col-head .count {
-    margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted);
-  }
-  .col:not(:last-child):not(:nth-last-child(2)) .col-head::after {
-    content: "›"; position: absolute; right: -10px; top: -2px; color: var(--faint); font-size: 16px;
-  }
-  .col.human .col-head { border-bottom-color: color-mix(in srgb, var(--human) 55%, transparent); }
-  .col.human h2 { color: var(--human); }
-  .col.merged-col h2 { color: var(--merged); }
-  .empty { color: var(--faint); font-size: 12px; padding: 4px 2px; }
+  .kanban .job:first-child { border-top: 1px solid var(--line); }
+  .kanban .job:hover { background: var(--raise); }
+  .kanban .job.needs-human { background: color-mix(in srgb, var(--stop) 10%, var(--panel)); border-color: color-mix(in srgb, var(--stop) 45%, var(--line)); }
+  .kanban .job > .icon { margin-top: 2px; }
+  .kanban .where, .kanban .meta { grid-column: 2; }
+  .kanban .title { white-space: normal; }
+  .kanban .steps { display: none; }
+  .kanban .says { margin-top: 0; }
+  .kanban .meta { justify-content: flex-start; }
+  .kanban .meta .time { min-width: 0; text-align: left; }
+  .kanban .none { margin: 0; padding: 10px 2px; font-size: 12px; color: var(--faint); }
 
-  /* Cards */
-  .card {
-    display: block; width: 100%; text-align: left; cursor: pointer; color: inherit;
-    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 12px 10px; margin-bottom: 10px;
-    transition: background .15s, border-color .15s, transform .15s;
-  }
-  .card:hover { background: var(--card-hover); transform: translateY(-1px); }
-  .card:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
-  .card.live { border-color: color-mix(in srgb, var(--active) 35%, var(--line)); }
-  .card.human {
-    border-color: var(--human);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--human) 40%, transparent),
-                0 8px 24px -12px color-mix(in srgb, var(--human) 60%, transparent);
-  }
-  .card.done { opacity: .72; }
-  .card.rejected .feature { text-decoration: line-through; text-decoration-color: var(--faint); }
-  .flag.wait { color: var(--changes); }
-  .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-  .num { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .card-top .num { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pulse {
-    width: 7px; height: 7px; border-radius: 50%; background: var(--active);
-    animation: pulse 1.6s ease-in-out infinite;
-  }
-  .flag {
-    margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: .06em;
-    text-transform: uppercase; color: var(--human); white-space: nowrap;
-  }
-  .feature { font-size: 13px; line-height: 1.4; margin: 0 0 6px; }
-  .links { display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; }
-  .links a { color: var(--active); text-decoration: none; }
-  .links a:hover { text-decoration: underline; }
-  .meta { display: flex; gap: 10px; margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
-  .meta .risk-high { color: var(--human); } .meta .risk-medium { color: var(--changes); }
-  .agent {
-    margin-top: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--active);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .chip.gate { flex: 0 0 38px; }
-  .chip.FAIL { border: 1px solid transparent; color: var(--human); background: color-mix(in srgb, var(--human) 16%, transparent); }
-  .branch {
-    font-family: var(--mono); font-size: 11px; color: var(--faint);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .rounds { margin-top: 10px; display: grid; gap: 5px; }
-  .round { display: flex; align-items: center; gap: 4px; }
-  .round .r { font-family: var(--mono); font-size: 10px; color: var(--faint); width: 20px; }
-  .chip {
-    flex: 1; text-align: center; font-family: var(--mono); font-size: 10px;
-    padding: 2px 0; border-radius: 4px; border: 1px dashed var(--faint); color: var(--faint);
-  }
-  .chip.wait { animation: breathe 1.6s ease-in-out infinite; }
-  .chip.PASS {
-    border: 1px solid transparent; color: var(--pass);
-    background: color-mix(in srgb, var(--pass) 14%, transparent);
-  }
-  .chip.CHANGES {
-    border: 1px solid transparent; color: var(--changes);
-    background: color-mix(in srgb, var(--changes) 16%, transparent);
-  }
-  .chip.bad { border: 1px solid var(--human); color: var(--human); }
-  .hint {
-    margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line);
-    font-family: var(--mono); font-size: 10.5px; color: var(--muted); line-height: 1.6;
-    overflow-wrap: anywhere;
-  }
-
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
-  @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
-  @media (prefers-reduced-motion: reduce) { .pulse, .chip.wait { animation: none; } }
-
-  /* Drawer */
-  .scrim {
-    position: fixed; inset: 0; background: rgba(5, 6, 10, .55);
-    opacity: 0; pointer-events: none; transition: opacity .2s;
-  }
+  /* Detail panel */
+  .scrim { position: fixed; inset: 0; z-index: 3; background: rgb(0 0 0 / .5); opacity: 0; pointer-events: none; transition: opacity .2s; }
   .drawer {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(920px, 100vw);
-    background: var(--panel); border-left: 1px solid var(--line);
-    display: grid; grid-template-rows: auto 1fr; transform: translateX(100%);
-    transition: transform .25s ease;
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 4; width: min(960px, 100vw);
+    display: grid; grid-template-rows: auto 1fr; background: var(--panel); border-left: 1px solid var(--line);
+    box-shadow: -28px 0 56px -28px rgb(0 0 0 / .7);
+    transform: translateX(100%); visibility: hidden;
+    transition: transform .22s cubic-bezier(.16, 1, .3, 1), visibility 0s .22s;
   }
   .open .scrim { opacity: 1; pointer-events: auto; }
-  .open .drawer { transform: none; }
-  .d-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--line); position: relative; }
-  .d-head .num { font-size: 12px; }
-  .d-head h3 { margin: 4px 40px 6px 0; font-size: 16px; font-weight: 600; line-height: 1.35; }
+  .open .drawer { transform: none; visibility: visible; transition-delay: 0s; }
+  .d-head { position: relative; padding: 16px 60px 14px 20px; border-bottom: 1px solid var(--line); }
+  .d-id { font: 12px var(--code); color: var(--faint); }
+  .d-head h3 { margin: 4px 0 6px; font-size: 16px; font-weight: 600; line-height: 1.35; }
+  .links { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
+  .facts { display: flex; flex-wrap: wrap; gap: 3px 18px; margin: 12px 0 0; font-size: 12px; color: var(--faint); }
+  .facts b { font-weight: 400; color: var(--text); }
+  .d-hint { margin: 10px 0 0; font-size: 13px; color: var(--text); }
+  .agents { margin-top: 10px; font-size: 12px; color: var(--faint); }
+  .agents summary { cursor: pointer; color: var(--muted); width: fit-content; }
+  .agents summary:hover { color: var(--text); }
+  .agents dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 3px 18px; margin: 8px 0 0; }
+  .agents div { display: flex; gap: 8px; }
+  .agents dt { min-width: 7.5em; }
+  .agents dd { margin: 0; color: var(--text); }
   .close {
-    position: absolute; top: 16px; right: 16px; width: 32px; height: 32px;
-    border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer;
-    color: var(--muted); font-size: 18px; line-height: 1;
+    position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; display: grid; place-items: center;
+    border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--muted); cursor: pointer;
+    transition: color .15s, border-color .15s;
   }
-  .close:hover { color: var(--text); border-color: var(--muted); }
-  .d-body { display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
-  .files { border-right: 1px solid var(--line); padding: 14px 10px; overflow-y: auto; }
-  .files .group {
-    font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
-    color: var(--faint); margin: 12px 8px 4px;
-  }
-  .files .group:first-child { margin-top: 0; }
+  .close:hover { color: var(--text); border-color: var(--line-2); }
+  .d-body { display: grid; grid-template-columns: 224px 1fr; min-height: 0; }
+  .files { padding: 10px 8px; overflow-y: auto; border-right: 1px solid var(--line); }
+  .files .grp { margin: 14px 8px 4px; font-size: 12px; font-weight: 600; color: var(--faint); }
+  .files .grp:first-child { margin-top: 2px; }
   .file {
-    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-    background: none; border: 0; border-radius: 6px; padding: 5px 8px; cursor: pointer;
-    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; text-align: left;
+    border: 0; border-radius: 6px; background: none; cursor: pointer; font-size: 13px; color: var(--muted);
   }
-  .file:hover { background: var(--card); color: var(--text); }
-  .file.on { background: var(--card-hover); color: var(--text); }
+  .file:hover, .file.on { background: var(--raise); color: var(--text); }
+  .file .icon { width: 13px; height: 13px; color: var(--faint); }
+  .file.good .icon { color: var(--go); } .file.warn .icon { color: var(--wait); } .file.stop .icon { color: var(--stop); }
   .file .rn { display: none; }
-  .file .v { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); flex: none; }
-  .v.good { background: var(--pass); } .v.warn { background: var(--changes); } .v.stop { background: var(--human); }
-  .doc { overflow-y: auto; padding: 22px 28px 60px; min-width: 0; }
+  .file .t { margin-left: auto; padding-left: 8px; font-size: 12px; color: var(--faint); }
+  .doc { min-width: 0; padding: 20px 26px 56px; overflow-y: auto; }
 
   /* Rendered markdown */
   .md { max-width: 680px; line-height: 1.65; }
@@ -195,92 +220,110 @@
   .md li { margin: .2em 0; }
   .md li.task { list-style: none; margin-left: -1.3em; }
   .md li.task::before { content: "☐"; margin-right: .5em; color: var(--faint); }
-  .md li.task.done::before { content: "☑"; color: var(--pass); }
+  .md li.task.done::before { content: "☑"; color: var(--go); }
   .md code {
-    font-family: var(--mono); font-size: 12px; background: var(--card);
+    font-family: var(--code); font-size: 12px; background: var(--raise);
     padding: 1px 5px; border-radius: 4px;
   }
   .md pre {
-    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    background: var(--floor); border: 1px solid var(--line); border-radius: 8px;
     padding: 12px 14px; overflow-x: auto;
   }
   .md pre code { background: none; padding: 0; }
   .md blockquote { border-left: 2px solid var(--line); padding-left: 12px; color: var(--muted); }
-  .md a { color: var(--active); }
+  .md a { color: inherit; }
   .md table { border-collapse: collapse; font-size: 13px; display: block; overflow-x: auto; }
   .md th, .md td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
   .verdict {
-    display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 600;
+    display: inline-block; font-family: var(--code); font-size: 12px; font-weight: 600;
     padding: 4px 10px; border-radius: 6px; margin-bottom: 14px;
   }
   .verdict + * { margin-top: .4em; }
-  .md .head { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: -6px 0 14px; white-space: pre-line; }
-  .verdict.good { color: var(--pass); background: color-mix(in srgb, var(--pass) 14%, transparent); }
-  .verdict.warn { color: var(--changes); background: color-mix(in srgb, var(--changes) 16%, transparent); }
-  .verdict.stop { color: var(--human); background: color-mix(in srgb, var(--human) 16%, transparent); }
+  .md .head { font-family: var(--code); font-size: 12px; color: var(--muted); margin: -6px 0 14px; white-space: pre-line; }
+  .verdict.good { color: var(--go); background: color-mix(in srgb, var(--go) 14%, transparent); }
+  .verdict.warn { color: var(--wait); background: color-mix(in srgb, var(--wait) 16%, transparent); }
+  .verdict.stop { color: var(--stop); background: color-mix(in srgb, var(--stop) 16%, transparent); }
   .note { color: var(--faint); font-size: 13px; }
   .md .summary {
-    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+    background: var(--raise); border: 1px solid var(--line); border-radius: 8px;
     padding: 12px 16px 4px; margin: 0 0 22px;
   }
   .md .summary h2 {
-    margin: 0 0 6px; font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: .08em; color: var(--muted);
+    margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--muted);
   }
   .md .summary ul { margin: 0 0 .6em; }
 
-  footer {
-    padding: 0 32px 32px; font-family: var(--mono); font-size: 11px; color: var(--faint);
-    display: flex; gap: 20px; flex-wrap: wrap;
-  }
+  footer { padding: 0 24px 28px; font-size: 12px; color: var(--faint); }
 
-  @media (max-width: 1100px) {
-    .board { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 28px; }
-    .col-head::after { display: none; }
+  @media (max-width: 1240px) {
+    /* Too narrow for six names: keep the lit station's name, the rest become marks. */
+    .board:not(.kanban) .steps li:not(.now) span { display: none; }
+    .board:not(.kanban) .steps li + li::before { width: 8px; margin: 0 4px 0 0; }
+  }
+  @media (max-width: 760px) {
+    .bar { padding: 10px 16px; }
+    .filters { padding: 12px 16px 0; }
+    .spend { display: none; }
+    .board { padding: 2px 12px 32px; }
+    .banner { margin: 12px 12px 0; }
+    .job { grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 5px 10px; padding: 12px; }
+    .job > .icon { margin-top: 2px; }
+    .title { white-space: normal; }
+    .where, .meta { grid-column: 2; }
+    .meta { justify-content: flex-start; }
+    .meta .time { min-width: 0; text-align: left; }
+    .board.kanban { grid-template-columns: repeat(7, 82vw); scroll-padding-left: 12px; }
+    footer { padding: 0 16px 24px; }
   }
   @media (max-width: 640px) {
-    header { padding: 20px 16px 4px; }
-    .banner { margin: 12px 16px 0; }
-    .board { grid-template-columns: 1fr; padding: 16px 16px 32px; }
-    footer { padding: 0 16px 24px; }
-    .d-head { padding: 16px; }
+    .d-head { padding: 14px 56px 12px 16px; }
     .d-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-    .files {
-      border-right: 0; border-bottom: 1px solid var(--line); display: flex; gap: 4px;
-      overflow-x: auto; padding: 8px;
-    }
-    .files .group { display: none; }
+    .files { display: flex; gap: 4px; padding: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+    .files .grp, .file .t { display: none; }
     .file { width: auto; white-space: nowrap; }
     .file .rn { display: inline; white-space: pre; }
-    .doc { padding: 18px 16px 48px; }
+    .doc { padding: 16px 16px 48px; }
   }
 </style>
 </head>
 <body>
-<header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.2 8.6l3 3 6.6-7.2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-run" viewBox="0 0 16 16"><path d="M8 2.2a5.8 5.8 0 1 1-5.5 4"/></symbol>
+  <symbol id="i-todo" viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.7v3.9M8 11.2v.1"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.6V8l2.3 1.5"/></symbol>
+  <symbol id="i-changes" viewBox="0 0 16 16"><path d="M8 2.4l6.2 10.8H1.8zM8 6.6v3M8 11.3v.1"/></symbol>
+  <symbol id="i-merged" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M5.2 8.3l2 2 3.7-4.2"/></symbol>
+  <symbol id="i-slash" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2"/><path d="M3.8 12.2l8.4-8.4"/></symbol>
+</svg>
+
+<header class="bar">
   <h1>Software factory</h1>
-  <div class="status" id="status">connecting…</div>
+  <div class="live" id="status"><span class="dot"></span><span>Connecting</span></div>
+  <div class="seg" role="group" aria-label="Layout">
+    <button type="button" data-view="list">List</button>
+    <button type="button" data-view="board">Board</button>
+  </div>
 </header>
+<nav class="filters" id="filters" aria-label="Show jobs"></nav>
 <div id="banner"></div>
-<main class="board" id="board"></main>
-<footer>
-  <span>/factory run</span>
-  <span>/factory run &lt;n&gt;</span>
-  <span>/factory &lt;anything&gt;</span>
-  <span id="totals"></span>
-</footer>
+<main class="board" id="board"><div class="group"><h2>Reading jobs</h2><div class="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></div></main>
+<footer>Start a run with <code>/factory run</code>. Talk to the factory with <code>/factory &lt;anything&gt;</code>.</footer>
 
 <div id="overlay">
   <div class="scrim" data-close></div>
   <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title">
     <div class="d-head">
-      <div class="num" id="d-num"></div>
+      <div class="d-id" id="d-num"></div>
       <h3 id="d-title"></h3>
       <div class="links" id="d-links"></div>
-      <button class="close" data-close aria-label="Close">×</button>
+      <div id="d-facts"></div>
+      <button class="close" data-close aria-label="Close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-x"/></svg></button>
     </div>
     <div class="d-body">
-      <nav class="files" id="d-files"></nav>
+      <nav class="files" id="d-files" aria-label="Files of this job"></nav>
       <article class="doc"><div class="md" id="d-doc"></div></article>
     </div>
   </aside>
@@ -288,35 +331,70 @@
 
 <script>
 const POLL_MS = 2000
-const COLUMNS = [
-  { label: 'Intake', who: 'intake', stages: ['intake', 'needs-info'] },
-  { label: 'Spec', who: 'spec-writer', stages: ['spec'] },
-  { label: 'Build', who: 'builder · gate', stages: ['build', 'gate'] },
-  { label: 'Review', who: 'routed reviewers', stages: ['review'] },
-  { label: 'Approve', who: 'approver · merge', stages: ['approve', 'merging'] },
-  { label: 'Needs human', who: 'you', stages: ['needs-human'], cls: 'human' },
-  { label: 'Done', who: 'merged · rejected', stages: ['merged', 'rejected'], cls: 'merged-col' },
-]
-const STAGES = new Set(COLUMNS.flatMap((c) => c.stages))
 const LIVE = new Set(['intake', 'spec', 'build', 'gate', 'review', 'approve', 'merging'])
-const SHORT = { code: 'code', ux: 'ux', ui: 'ui', security: 'sec' }
+// The list groups jobs by what they ask of you, most urgent first. The filters use the same sets.
+const GROUPS = [
+  { key: 'stop', label: 'Needs you', stages: ['needs-human'] },
+  { key: 'run', label: 'Running', stages: [...LIVE] },
+  { key: 'wait', label: 'Waiting for the author', short: 'Waiting', stages: ['needs-info'] },
+  { key: 'done', label: 'Done', stages: ['merged', 'rejected'] },
+]
+// The board puts the same jobs in one column per station.
+const COLUMNS = [
+  { label: 'Intake', stages: ['intake', 'needs-info'] },
+  { label: 'Spec', stages: ['spec'] },
+  { label: 'Build', stages: ['build', 'gate'] },
+  { label: 'Review', stages: ['review'] },
+  { label: 'Approve', stages: ['approve', 'merging'] },
+  { label: 'Needs you', stages: ['needs-human'] },
+  { label: 'Done', stages: ['merged', 'rejected'] },
+]
+const STAGES = new Set(GROUPS.flatMap((g) => g.stages))
+// The line a job moves along; `checks` is the gate.
+const STATIONS = [
+  ['intake', ['intake']], ['spec', ['spec']], ['build', ['build']],
+  ['checks', ['gate']], ['review', ['review']], ['approve', ['approve', 'merging']],
+]
+// A job that isn't running: its mark, its colour, and what the mark says.
+const RESTING = {
+  'needs-human': ['alert', 's-stop', 'needs you'],
+  'needs-info': ['clock', 's-wait', 'waiting for the author'],
+  merged: ['merged', 's-done', 'merged'],
+  rejected: ['slash', 's-off', 'rejected'],
+}
+const SHORT = { code: 'code', ux: 'ux', ui: 'ui', security: 'security' }
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+const icon = (id, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 16 16" aria-hidden="true"><use href="#i-${id}"/></svg>`
 
 let jobs = []
+// 'list' or 'board'; ?view= in the address wins, then the last choice on this computer.
+let view = new URLSearchParams(location.search).get('view') || localStorage.getItem('factory-view') || 'list'
+let filter = 'all' // or a GROUPS key
 let lastRender = ''
 const roundCache = new Map() // "<job>/<n>" -> verdicts of a finished round
 let openJobId = null
 let openPath = null
 let openText = null
 
-async function fetchText(url) {
-  const res = await fetch(url, { cache: 'no-store' })
+// `at` is when the file was last written: http.server sends it as Last-Modified.
+async function fetchFile(url, again = true) {
+  let res
+  try {
+    res = await fetch(url, { cache: 'no-store' })
+  } catch (err) {
+    // http.server drops a connection now and then when a page asks for many files at once.
+    if (!again) throw err
+    await new Promise((r) => setTimeout(r, 200))
+    return fetchFile(url, false)
+  }
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`)
-  return res.text()
+  return { text: await res.text(), at: res.headers.get('Last-Modified') }
 }
+
+const fetchText = async (url) => (await fetchFile(url)).text
 
 async function fetchFirst(url) {
   try { return (await fetchText(url)).split('\n')[0].trim() } catch { return null }
@@ -347,39 +425,54 @@ async function roundVerdicts(job, n) {
   return v
 }
 
-function chip(label, v, waiting, title, extra = '') {
-  const cls = ['PASS', 'CHANGES', 'FAIL'].includes(v) ? v : v === 'pending' ? (waiting ? 'wait' : '') : 'bad'
-  return `<span class="chip ${extra} ${cls}" title="${esc(title)}: ${esc(v)}">${esc(label)}</span>`
-}
-
-// "codex · gpt-6.2-astra": where job.json plans a role, when the job was created with --host.
+// "codex gpt-6.2-astra": where job.json plans a role, when the job was created with --host.
 function planned(job, role) {
   const w = job.who?.[role]
-  return w ? `${w.cli} · ${w.model}` : ''
+  return w ? `${w.cli} ${w.model}` : ''
 }
 
-function roundRow(job, n, v) {
+// One verdict: a mark and a name, so it reads without colour.
+function verdict(label, v, running, who) {
+  const [mark, cls, word] = {
+    PASS: ['check', 'PASS', 'passed'], CHANGES: ['changes', 'CHANGES', 'asked for changes'], FAIL: ['x', 'FAIL', 'failed'],
+    pending: running ? ['run', 'run', 'running'] : ['todo', 'todo', 'not started'],
+  }[v] || ['x', 'FAIL', 'unreadable']
+  return `<span class="v ${cls}" title="${esc(who)}: ${word}">${icon(mark, mark === 'run' ? 'spin' : '')}${esc(label)}<span hidden> ${word}</span></span>`
+}
+
+// The verdicts of one round: the checks first, then each routed reviewer that has started.
+function verdicts(job, n, v) {
   const current = n === job.round
-  const cells = [chip('gate', v.gate, current && job.stage === 'gate', 'gate', 'gate')]
+  const out = [verdict('checks', v.gate, current && job.stage === 'gate', 'checks')]
   for (const r of Object.keys(job.agents?.reviewers || {})) {
     // During the gate only the reviewers that don't wait for it are at work.
     const early = current && job.stage === 'gate' && !(job.after_gate || []).includes(r)
     if ((v.reviews[r] || 'pending') === 'pending' && v.gate !== 'PASS' && !early) continue  // never started
     const running = early || (current && job.stage === 'review')
-    cells.push(chip(SHORT[r] || r, v.reviews[r], running, [r, planned(job, `reviewer-${r}`)].filter(Boolean).join(' · ')))
+    out.push(verdict(SHORT[r] || r, v.reviews[r], running, [`${r} review`, planned(job, `reviewer-${r}`)].filter(Boolean).join(' on ')))
   }
-  return `<div class="round"><span class="r">R${n}</span>${cells.join('')}</div>`
+  return out.join('')
 }
 
 function elapsed(job) {
   const end = job.ended ? new Date(job.ended) : new Date()
   const min = Math.max(0, Math.floor((end - new Date(job.started)) / 60000))
-  return min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}m` : `${min}m`
+  return min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min}m`
 }
 
+// Only Claude Code subagents leave a transcript the cost is read from.
+function cost(job) {
+  return !Number(job.cost_usd) && job.host === 'codex'
+    ? '<span title="only Claude Code subagents are counted">cost not counted</span>'
+    : `$${Number(job.cost_usd).toFixed(2)}`
+}
+
+const machineOf = (job) => (job.machine || '').replace(/\.local$/, '')
+
 // The example jobs keep their issue and PR numbers but have no URLs.
-const link = (url, text) =>
-  url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${text}</a>` : `<span>${text}</span>`
+const link = (url, text, cls = '') => url
+  ? `<a ${cls ? `class="${cls}" ` : ''}href="${esc(url)}" target="_blank" rel="noopener">${text}</a>`
+  : `<span${cls ? ` class="${cls}"` : ''}>${text}</span>`
 
 function links(job) {
   const out = [link(job.issue_url, `issue #${job.issue}`)]
@@ -387,72 +480,107 @@ function links(job) {
   return out.join('')
 }
 
-function card(job, rounds) {
-  const live = LIVE.has(job.stage)
-  const human = job.stage === 'needs-human'
-  const done = job.stage === 'merged' || job.stage === 'rejected'
-  const [num, ...slug] = job.id.split('-')
-  const flag = human ? '<span class="flag">your call</span>'
-    : job.stage === 'needs-info' ? '<span class="flag wait">asked author</span>'
-    : job.stage === 'rejected' ? '<span class="flag wait">rejected</span>' : ''
-  const risk = job.intake?.risk
+// Where the work runs: "on claude opus" for the station's own agent, or the reviewers' CLIs.
+function worker(job) {
   const role = { intake: 'intake', spec: 'spec-writer', build: 'builder', approve: 'approver' }[job.stage]
-  const reviewing = ['gate', 'review'].includes(job.stage)
-    ? [...new Set(Object.keys(job.agents?.reviewers || {}).map((r) => job.who?.[`reviewer-${r}`]?.cli).filter(Boolean))]
-    : []
-  const plan = role && planned(job, role)
-  const agent = plan ? `${role} · ${plan}`
-    : reviewing.length ? `reviewers · ${reviewing.join(', ')}` : ''
-  const meta = [
-    risk ? `<span class="risk-${esc(risk)}">${esc(risk)}</span>` : '',
-    `<span>$${Number(job.cost_usd).toFixed(2)}</span>`,
-    `<span>${elapsed(job)}</span>`,
-    job.machine ? `<span title="the computer running this job">${esc(job.machine.replace(/\.local$/, ''))}</span>` : '',
-  ].join('')
+  if (role) return planned(job, role) ? `on ${planned(job, role)}` : ''
+  if (!['gate', 'review'].includes(job.stage)) return ''
+  const clis = [...new Set(Object.keys(job.agents?.reviewers || {})
+    .map((r) => job.who?.[`reviewer-${r}`]?.cli).filter(Boolean))]
+  return clis.length ? `reviewers on ${clis.join(', ')}` : ''
+}
+
+// What to do with a job that stopped for you.
+const yourMove = (job) => job.pr
+  ? `Merge the PR to approve it, or say what to change with <code>/factory &lt;anything&gt;</code>.`
+  : `Say what to change with <code>/factory &lt;anything&gt;</code>.`
+
+// `v` is the current round's verdicts, or null before the first build.
+function row(job, v) {
+  const live = LIVE.has(job.stage)
+  const [mark, colour, word] = live ? ['run', 's-run', 'running'] : RESTING[job.stage]
+  const at = STATIONS.findIndex(([, stages]) => stages.includes(job.stage))
+  const steps = live ? `<ol class="steps" aria-label="at ${STATIONS[at][0]}, station ${at + 1} of ${STATIONS.length}">${
+    STATIONS.map(([name], i) => `<li class="${i < at ? 'done' : i === at ? 'now' : ''}" title="${name}">${
+      icon(i < at ? 'check' : i === at ? 'run' : 'todo', i === at ? 'spin' : '')}<span>${name}</span></li>`).join('')}</ol>` : ''
+  const round = `round ${job.round} of ${job.round_limit}`
+  const said = live
+    ? [job.round > 1 ? round : '', `<span class="by" title="planned when the job started; config.json can change it">${esc(worker(job))}</span>`]
+    : [{ 'needs-human': `Stopped in ${round}`, 'needs-info': 'Asked the author a question',
+         merged: `Merged${job.round > 1 ? ` after ${job.round} rounds` : ''}`, rejected: 'Rejected' }[job.stage]]
+  // Verdicts matter while they are being collected, and on the round that stopped the job.
+  const showVerdicts = v && ['gate', 'review', 'approve', 'merging', 'needs-human'].includes(job.stage)
+  const risk = job.intake?.risk
   return `
-    <article class="card ${live ? 'live' : ''} ${human ? 'human' : ''} ${done ? 'done' : ''} ${job.stage}"
-             data-job="${esc(job.id)}" tabindex="0">
-      <div class="card-top">
-        ${live ? '<span class="pulse" aria-label="running"></span>' : ''}
-        <span class="num">${esc(num)} · ${esc(slug.join('-'))}</span>
-        ${flag}
+    <article class="job ${job.stage}" data-job="${esc(job.id)}" tabindex="0">
+      ${icon(mark, colour + (live ? ' spin' : ''))}
+      <div class="what">
+        <p class="title"><span hidden>${word}: </span>${esc(job.title)}</p>
+        <div class="ref">${links(job)}</div>
       </div>
-      <p class="feature">${esc(job.title)}</p>
-      <div class="links">${links(job)}</div>
-      ${rounds.length ? `<div class="rounds">${rounds.join('')}</div>` : ''}
-      ${agent ? `<div class="agent" title="planned when the job started; config.json can change it">${esc(agent)}</div>` : ''}
-      <div class="meta">${meta}</div>
-      ${human ? `<div class="hint">${job.pr ? `merge PR #${job.pr} to approve<br>` : ''}or give feedback: /factory &lt;anything&gt;</div>` : ''}
+      <div class="where">
+        ${steps}
+        <div class="says">
+          ${said.filter(Boolean).map((s) => s.startsWith('<') ? s : `<span>${s}</span>`).join('')}
+          ${showVerdicts ? verdicts(job, job.round, v) : ''}
+          ${job.stage === 'needs-human' && job.pr ? link(job.pr_url, `Review PR #${job.pr}`, 'act') : ''}
+        </div>
+      </div>
+      <div class="meta">
+        ${risk && risk !== 'low' ? `<span class="risk-${esc(risk)}">${esc(risk)} risk</span>` : ''}
+        <span>${cost(job)}</span>
+        <span class="time">${elapsed(job)}</span>
+      </div>
     </article>`
+}
+
+function filterBar(count) {
+  const button = (key, label, n, mark, colour) => `
+    <button type="button" class="filter ${key === 'stop' && n ? 'alert' : ''}" data-filter="${key}" aria-pressed="${filter === key}">
+      ${mark ? icon(mark, n ? colour : 's-off') : ''}${label}<span class="n">${n}</span></button>`
+  const machines = [...new Set(jobs.map(machineOf).filter(Boolean))]
+  const spent = jobs.reduce((sum, j) => sum + Number(j.cost_usd), 0)
+  return button('all', 'All', jobs.length)
+    + button('stop', 'Needs you', count.stop, 'alert', 's-stop')
+    + button('run', 'Running', count.run, 'run', 's-run')
+    + button('wait', 'Waiting', count.wait, 'clock', 's-wait')
+    + button('done', 'Done', count.done, 'merged', 's-done')
+    + (jobs.length ? `<span class="spend">${machines.length ? `On ${esc(machines.join(' and '))}, ` : ''}$${spent.toFixed(2)} at API prices</span>` : '')
 }
 
 async function render() {
   const problems = []
-  const cards = new Map(COLUMNS.map((c) => [c, []]))
+  const kanban = view === 'board'
+  const sets = kanban ? COLUMNS : GROUPS
+  const rows = new Map(sets.map((g) => [g, []]))
+  const shown = GROUPS.find((g) => g.key === filter)
   for (const job of jobs) {
     if (!STAGES.has(job.stage)) { problems.push(`Job ${job.id} has unknown stage "${job.stage}"`); continue }
-    const rounds = []
-    for (let n = 1; n <= job.round; n++) rounds.push(roundRow(job, n, await roundVerdicts(job, n)))
-    cards.get(COLUMNS.find((c) => c.stages.includes(job.stage))).push(card(job, rounds))
+    if (shown && !shown.stages.includes(job.stage)) continue
+    const v = job.round ? await roundVerdicts(job, job.round) : null
+    rows.get(sets.find((g) => g.stages.includes(job.stage))).push(row(job, v))
   }
-  // Newest first within a column.
-  const html = COLUMNS.map((c) => `
-    <section class="col ${c.cls || ''}">
-      <div class="col-head">
-        <h2>${c.label}</h2><span class="who">${c.who}</span>
-        <span class="count">${cards.get(c).length || ''}</span>
-      </div>
-      ${cards.get(c).reverse().join('') || '<div class="empty">—</div>'}
+  const count = Object.fromEntries(GROUPS.map((g) => [g.key, jobs.filter((j) => g.stages.includes(j.stage)).length]))
+  const drawn = [...rows.values()].reduce((n, r) => n + r.length, 0)
+  // Newest first within a group. The list leaves out a group with no jobs; the board keeps every column.
+  let html = sets.filter((g) => kanban || rows.get(g).length).map((g) => `
+    <section class="group">
+      <h2>${g.label}<span class="n">${rows.get(g).length || ''}</span></h2>
+      <div class="list">${rows.get(g).reverse().join('') || '<p class="none">No jobs here.</p>'}</div>
     </section>`).join('')
+  if (!jobs.length) html = '<p class="empty">No jobs yet. Label a GitHub issue <code>factory</code> and run <code>/factory run</code>: each issue becomes a row here and moves along the line as its agents finish.</p>'
+  else if (!drawn) html = `<p class="empty">No job is ${shown.key === 'stop' ? 'waiting for you' : shown.key === 'wait' ? 'waiting for its author' : shown.label.toLowerCase()} right now.</p>`
+  const bar = filterBar(count)
   const banner = problems.map((p) => `<div class="banner">${esc(p)}</div>`).join('')
-  if (html + banner !== lastRender) {
-    lastRender = html + banner
+  for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', b.dataset.view === view)
+  $('board').classList.toggle('kanban', kanban && drawn > 0)
+  document.title = count.stop ? `(${count.stop}) Software Factory` : 'Software Factory'
+  if (html + banner + bar !== lastRender) {
+    lastRender = html + banner + bar
+    $('filters').innerHTML = bar
     $('board').innerHTML = html
     $('banner').innerHTML = banner
   }
-  const running = jobs.filter((j) => LIVE.has(j.stage)).length
-  const cost = jobs.reduce((sum, j) => sum + Number(j.cost_usd), 0)
-  $('totals').textContent = `${running} running · $${cost.toFixed(2)} API-equivalent`
 }
 
 async function poll() {
@@ -461,11 +589,11 @@ async function poll() {
     jobs = await loadJobs()
     await render()
     if (openJobId) await refreshDrawer()
-    status.className = 'status'
-    status.innerHTML = `<span class="dot"></span>jobs/ · ${new Date().toLocaleTimeString()}`
+    status.className = 'live'
+    status.innerHTML = `<span class="dot"></span><span>Updated ${new Date().toLocaleTimeString()}</span>`
   } catch (err) {
-    status.className = 'status error'
-    status.innerHTML = `<span class="dot"></span>${esc(err.message)}`
+    status.className = 'live error'
+    status.innerHTML = `<span class="dot"></span><span>Can't read the jobs: ${esc(err.message)}. Trying again.</span>`
   }
 }
 
@@ -520,41 +648,52 @@ function tone(first) {
   return null
 }
 
-const firstLines = new Map()
+const fileMeta = new Map() // url -> { first, at }: first line and time last written
+
+const clock = (at) => at ? new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
 
 async function refreshDrawer() {
   const job = jobs.find((j) => j.id === openJobId)
   if (!job) return
-  $('d-num').textContent = `${job.id} · ${job.stage}${job.round ? ` · round ${job.round}` : ''} · $${Number(job.cost_usd).toFixed(2)} · ${elapsed(job)}`
+  $('d-num').textContent = job.id
   $('d-title').textContent = job.title
   $('d-links').innerHTML = links(job)
+  const fact = (label, value) => value ? `<span>${label} <b>${value}</b></span>` : ''
+  const who = Object.entries(job.who || {})
+  $('d-facts').innerHTML = `<div class="facts">${[
+    fact('Stage', esc(job.stage.replace('-', ' ')) + (job.round ? `, round ${job.round} of ${job.round_limit}` : '')),
+    fact('Time', elapsed(job)), fact('Cost', cost(job)), fact('On', esc(machineOf(job))),
+  ].join('')}</div>${job.stage === 'needs-human' ? `<p class="d-hint">${yourMove(job)}</p>` : ''}${who.length ? `
+    <details class="agents"><summary>Where each agent runs</summary><dl>${who.map(([role, w]) =>
+      `<div><dt>${esc(role.replace('reviewer-', 'review: '))}</dt><dd>${esc(w.cli)} ${esc(w.model)}</dd></div>`).join('')}</dl></details>` : ''}`
 
   const base = `jobs/${job.id}/`
   const files = sortFiles(await listFiles(base))
   if (!openPath || !files.includes(openPath)) openPath = files[0] || null
 
-  let text = null
-  if (openPath) {
-    text = await fetchText(base + openPath)
-    firstLines.set(base + openPath, text.split('\n')[0].trim())
+  const read = async (f) => {
+    const { text, at } = await fetchFile(base + f)
+    fileMeta.set(base + f, { first: text.split('\n')[0].trim(), at })
+    return text
   }
-  await Promise.all(files.filter((f) => !firstLines.has(base + f)).map(async (f) => {
-    firstLines.set(base + f, (await fetchText(base + f)).split('\n')[0].trim())
-  }))
+  const text = openPath ? await read(openPath) : null
+  await Promise.all(files.filter((f) => !fileMeta.has(base + f)).map(read))
 
   let group = null
-  $('d-files').innerHTML = files.map((f) => {
+  const html = files.map((f) => {
     const g = f.includes('/') ? f.split('/')[0].replace('round-', 'Round ') : 'Job'
-    const head = g !== group ? `<div class="group">${esc(g)}</div>` : ''
+    const head = g !== group ? `<div class="grp">${esc(g)}</div>` : ''
     group = g
     const round = f.match(/^round-(\d+)\//)
     const name = round
       ? `<span class="rn">R${round[1]} </span>${esc(f.split('/')[1].replace(/^review-|\.md$/g, ''))}`
-      : esc(f)
-    const t = tone(firstLines.get(base + f) || '')
-    return `${head}<button class="file ${f === openPath ? 'on' : ''}" data-file="${esc(f)}">
-      <span class="v ${t || ''}"></span>${name}</button>`
-  }).join('') || '<div class="empty">No files yet.</div>'
+      : esc(f.replace(/\.md$/, ''))
+    const meta = fileMeta.get(base + f) || {}
+    const t = tone(meta.first || '')
+    return `${head}<button class="file ${t || ''} ${f === openPath ? 'on' : ''}" data-file="${esc(f)}"${f === openPath ? ' aria-current="true"' : ''}>
+      ${icon({ good: 'check', warn: 'changes', stop: 'x' }[t] || 'todo')}${name}<span class="t" title="last written">${clock(meta.at)}</span></button>`
+  }).join('') || '<p class="none">No files yet.</p>'
+  if ($('d-files').innerHTML !== html) $('d-files').innerHTML = html
 
   if (text !== openText) {
     openText = text
@@ -562,11 +701,15 @@ async function refreshDrawer() {
   }
 }
 
+let opener = null // the row that opened the panel, to give focus back to
+
 async function openDrawer(id) {
+  opener = document.activeElement
   openJobId = id
   openPath = null
   openText = undefined
   document.body.classList.add('open')
+  document.querySelector('.close').focus()
   try {
     await refreshDrawer()
   } catch (err) {
@@ -575,14 +718,27 @@ async function openDrawer(id) {
 }
 
 function closeDrawer() {
+  if (!openJobId) return
   openJobId = null
   document.body.classList.remove('open')
+  opener?.focus?.()
 }
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('a')) return
-  const cardEl = e.target.closest('[data-job]')
-  if (cardEl) return openDrawer(cardEl.dataset.job)
+  const viewEl = e.target.closest('[data-view]')
+  if (viewEl) {
+    view = viewEl.dataset.view
+    localStorage.setItem('factory-view', view)
+    return render()
+  }
+  const filterEl = e.target.closest('[data-filter]')
+  if (filterEl) {
+    filter = filterEl.dataset.filter
+    return render()
+  }
+  const jobEl = e.target.closest('[data-job]')
+  if (jobEl) return openDrawer(jobEl.dataset.job)
   const fileEl = e.target.closest('[data-file]')
   if (fileEl) {
     openPath = fileEl.dataset.file
@@ -594,8 +750,8 @@ document.addEventListener('click', (e) => {
 })
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') return closeDrawer()
-  const cardEl = e.target.closest?.('[data-job]')
-  if (cardEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDrawer(cardEl.dataset.job) }
+  const jobEl = e.target.closest?.('[data-job]')
+  if (jobEl && e.target === jobEl && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDrawer(jobEl.dataset.job) }
 })
 
 // ---- Markdown (just enough for the factory's files) ---------------------
@@ -696,6 +852,7 @@ function markdown(src) {
   return html
 }
 
+for (const b of document.querySelectorAll('[data-view]')) b.setAttribute('aria-pressed', b.dataset.view === view)
 poll()
 setInterval(poll, POLL_MS)
 </script>

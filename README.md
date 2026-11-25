@@ -6,7 +6,7 @@ write a spec, build it, test it with your own checks, review it, and open a
 pull request that closes the issue. The approver merges what it's sure of and
 hands you the rest.
 
-![The board: one card per job, with a row of gate and review chips per round](docs/dashboard.png)
+![The dashboard: counts that filter, then one row per job with the stations it has passed](docs/dashboard.png)
 
 ## Install
 
@@ -180,10 +180,22 @@ DESIGN.md                     how it works and why
 cd factory && python3 -m http.server
 ```
 
-Open <http://localhost:8000/dashboard.html>. Each job is a card with its issue
-and PR, a row of gate and review chips per round, the agent at work with its
-CLI and model, its risk, cost, time and the computer running it. Click a card to read every file the job wrote; each one opens with a
-short summary of what happened in that step.
+Open <http://localhost:8000/dashboard.html>. The counts at the top say how many
+jobs need you, are running, wait for their author or are done, and each count
+is a filter. Below them every job is a row, grouped by what it asks of you:
+the ones that need you first, with a link to the PR to review. A running job
+shows the six stations it moves along (intake, spec, build, checks, review,
+approve), which CLI and model the work runs on, and the verdicts of the
+current round. Blue is at work, green passed, amber waits or asked for
+changes, red needs you, and every colour comes with its own mark. Click a row
+to read every file the job wrote, with the time each was last written. It
+works on a phone, and the tab title counts the jobs that need you.
+
+**Board** at the top right switches to a kanban layout: the same jobs, one
+column per station. The page remembers the choice, and
+`dashboard.html?view=board` opens it directly.
+
+![The board layout: one column per station](docs/dashboard-board.png)
 
 ![A job opened on the board: the files its agents wrote, here a code review that asked for changes](docs/dashboard-job.png)
 
