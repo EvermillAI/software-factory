@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Update this project's factory to a release of the software factory.
+
+Usage: update [<tag>]      default: the latest release
+
+Compares three versions of every factory file: the release this project
+installed (factory/VERSION), the new release, and the file here. A file you
+never changed becomes the release's. A file you tailored is merged, like
+`git merge` would; where both sides changed the same lines it gets conflict
+markers and the run exits 1. factory/checks.sh and factory/LESSONS.md are the
+project's own and are never touched.
+
+Nothing is committed. Read `git diff`, run the checks, commit.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+SOURCE = "meckyp/software-factory"
+URL = os.environ.get("FACTORY_SOURCE", f"https://github.com/{SOURCE}.git")
+ROOTS = (".claude", ".agents", "factory")
+MINE = {"factory/checks.sh", "factory/LESSONS.md"}
+VERSION = REPO / "factory" / "VERSION"
+
+
+def die(msg):
+    print(f"update: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def run(cmd, cwd=REPO):
+    res = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if res.returncode != 0:
+        die(f"`{' '.join(cmd)}` failed: {res.stderr.strip()}")
+    return res.stdout
+
+
+def release(tag, into):
+    """Check out a release and return the factory files in it."""
+    run(["git", "-c", "advice.detachedHead=false", "clone", "-q", "--depth", "1", "--branch", tag, URL, str(into)])
+    return set(run(["git", "ls-files", "--", *ROOTS], cwd=into).splitlines())
+
+
+def same(a, b):
+    return a.read_bytes() == b.read_bytes()
+
+
+def main(args):
+    if len(args) > 1:
+        die(__doc__.strip())
+    if not VERSION.exists():
+        die("no factory/VERSION: write the release tag this install came from in it, commit, and run again")
+    old = VERSION.read_text().strip()
+    new = args[0] if args else run(["gh", "api", f"repos/{SOURCE}/releases/latest", "--jq", ".tag_name"]).strip()
+    if new == old:
+        print(f"factory {old} is up to date")
+        return
+    conflicts = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        was_dir, now_dir = Path(tmp, "old"), Path(tmp, "new")
+        before, after = release(old, was_dir), release(new, now_dir)
+        paths = sorted((before | after) - MINE)
+        if run(["git", "status", "--porcelain", "--", *paths]):
+            die("commit or stash your changes to the factory first, so `git diff` shows only the update")
+        empty = Path(tmp, "empty")
+        empty.touch()
+        for path in paths:
+            mine, was, now = REPO / path, was_dir / path, now_dir / path
+            if path not in after:
+                if not mine.exists():
+                    continue
+                if same(mine, was):
+                    mine.unlink()
+                    print(f"removed\t{path}")
+                else:
+                    print(f"kept\t{path}\tthe release dropped it, you changed it")
+            elif path in before and same(was, now):
+                continue
+            elif not mine.exists():
+                if path in before:
+                    print(f"skipped\t{path}\tyou deleted it")
+                    continue
+                mine.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(now, mine)
+                print(f"added\t{path}")
+            elif path in before and same(mine, was):
+                shutil.copy(now, mine)
+                print(f"updated\t{path}")
+            elif not same(mine, now):
+                # Writes the merge into `mine`; the exit code is the number of conflicts.
+                res = subprocess.run(["git", "merge-file", "-L", "yours", "-L", old, "-L", new,
+                                      str(mine), str(was if path in before else empty), str(now)])
+                if res.returncode < 0 or res.returncode > 127:
+                    die(f"git merge-file failed on {path}")
+                conflicts += res.returncode
+                print(f"{'CONFLICT' if res.returncode else 'merged'}\t{path}")
+    VERSION.write_text(new + "\n")
+    print(f"factory {old} -> {new}. Nothing is committed: read `git diff`, run factory/checks.sh, commit.")
+    if conflicts:
+        print(f"{conflicts} conflict(s): fix the <<<<<<< markers first.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

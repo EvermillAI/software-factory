@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Run one factory agent as a command, with Codex or with Claude Code.
+
+Usage: agent [--host claude|codex] <role> <prompt> [--model <haiku|sonnet|opus|fable>]
+       agent [--host claude|codex] --which <role>
+       agent [--host claude|codex] --who <role> [--model <tier>]
+
+<role> is a file in .claude/agents/ (intake, spec-writer, builder,
+reviewer-code, ...). --host is the CLI the orchestrator runs in (default
+codex). config.json `runtime` says where each role runs: `host`, `other` (the
+CLI that isn't orchestrating), `claude`, `codex` or a name from config.json
+`runners`, looked up by role, then `reviewers` for every reviewer-*, then
+`host`. --which prints the answer; --who adds the model name that CLI gets.
+
+Codex gets the agent file's body as instructions, with the model and sandbox
+from config.json `codex`. Claude runs the agent file itself (`claude -p
+--agent`). A runner is a command template with {model}, {prompt} and {repo};
+it gets the body and the prompt as one argument. Blocks until the agent is done, then prints the last line of its
+reply: the same one line a Claude subagent returns.
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+CONFIG = json.loads((REPO / "factory" / "config.json").read_text())
+CLIS = ("claude", "codex")
+RUNNERS = CONFIG.get("runners", {})
+
+
+def die(msg):
+    print(f"agent: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def runtime(role, host):
+    table = CONFIG.get("runtime", {})
+    where = table.get(role) or (table.get("reviewers") if role.startswith("reviewer-") else None) or "host"
+    valid = ("host", "other", *CLIS, *RUNNERS)
+    if where not in valid:
+        die(f"config.json runtime for {role} is {where!r}, not one of {', '.join(valid)}")
+    # Runners approve every tool call, and these roles read issue text nobody vetted.
+    if role in CONFIG["untrusted_input"] and where in RUNNERS:
+        die(f"{role} can't run on {where}: keep it on claude or codex")
+    return {"host": host, "other": CLIS[1 - CLIS.index(host)]}.get(where, where)
+
+
+def codex_cmd(role, tier, last):
+    codex = CONFIG["codex"]
+    if tier not in codex["models"]:
+        die(f"model {tier!r} isn't in config.json codex.models ({', '.join(codex['models'])})")
+    sandbox = codex["sandbox"].get(role, codex["sandbox"]["default"])
+    cmd = ["codex", "exec", "-C", str(REPO), "-m", codex["models"][tier], "-s", sandbox,
+           "-c", "approval_policy='never'", "--output-last-message", str(last)]
+    if sandbox == "workspace-write" and role not in CONFIG["untrusted_input"]:
+        cmd += ["-c", "sandbox_workspace_write.network_access=true"]
+    return cmd + ["-"]  # prompt on stdin
+
+
+def runner_cmd(name, tier, prompt):
+    model = RUNNERS[name]["models"].get(tier)
+    if not model:
+        die(f"fill in config.json runners.{name}.models.{tier} first")
+    fill = {"{model}": model, "{prompt}": prompt, "{repo}": str(REPO)}
+    return [fill.get(part, part) for part in RUNNERS[name]["cmd"]]
+
+
+def main(argv):
+    ap = argparse.ArgumentParser(usage=__doc__.strip())
+    ap.add_argument("--host", choices=CLIS, default="codex")
+    ap.add_argument("--which", action="store_true")
+    ap.add_argument("--who", action="store_true")
+    ap.add_argument("--model")
+    ap.add_argument("role")
+    ap.add_argument("prompt", nargs="?")
+    args = ap.parse_args(argv)
+    role = args.role
+    path = REPO / ".claude" / "agents" / f"{role}.md"
+    if not re.fullmatch(r"[a-z-]+", role) or not path.exists():
+        die(f"no agent {role!r} in .claude/agents/")
+    cli = runtime(role, args.host)
+    if args.which:
+        print(cli)
+        return
+    _, frontmatter, body = path.read_text().split("---\n", 2)
+    field = lambda key: re.search(rf"^{key}: *(.+)$", frontmatter, re.M).group(1).strip()
+    tier = args.model or field("model")
+    if args.who:
+        # Claude takes the tier itself; the others get the name config.json maps it to.
+        names = CONFIG["codex"]["models"] if cli == "codex" else RUNNERS.get(cli, {}).get("models", {})
+        print(cli, names.get(tier) or tier)
+        return
+    if args.prompt is None:
+        die("no prompt")
+    full = f"{body.strip()}\n\n---\n\n{args.prompt}\n"
+    with tempfile.TemporaryDirectory() as tmp:
+        last = Path(tmp) / "last.md"  # only Codex writes its reply to a file
+        if cli == "codex":
+            cmd, stdin = codex_cmd(role, tier, last), full
+        elif cli in RUNNERS:
+            cmd, stdin = runner_cmd(cli, tier, full), ""
+        else:
+            # Headless Claude can't ask for permission, so allow what the agent file lists.
+            cmd = ["claude", "-p", "--agent", role, "--model", tier,
+                   "--allowedTools", field("tools").replace(" ", "")]
+            stdin = args.prompt + "\n"
+        if os.environ.get("FACTORY_DRY_RUN"):
+            print(json.dumps({"cmd": cmd, "stdin": stdin}))
+            return
+        # Codex's stdout is its whole transcript; the reply is in `last`.
+        res = subprocess.run(cmd, cwd=REPO, input=stdin, text=True, stderr=subprocess.PIPE,
+                             stdout=subprocess.DEVNULL if cli == "codex" else subprocess.PIPE)
+        if res.returncode != 0:
+            die(f"{cli} failed for {role}: {res.stderr.strip()[-2000:]}")
+        text = (last.read_text() if last.exists() else "") if cli == "codex" else res.stdout
+        reply = text.strip().splitlines()
+        print(reply[-1] if reply else f"{role}: no reply")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

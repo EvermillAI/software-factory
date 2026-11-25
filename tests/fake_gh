@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""Stand-in for `gh` in tests. State lives in $FAKE_GH: origin.git, log, prs.json."""
+import json
+import os
+import subprocess
+import sys
+
+S = os.environ["FAKE_GH"]
+a = sys.argv[1:]
+with open(f"{S}/log", "a") as f:
+    f.write(" ".join(a) + "\n")
+
+if a[:2] == ["api", "user"]:
+    print("me")
+elif a[:2] == ["issue", "view"]:
+    print(json.dumps({
+        "number": int(a[2]), "title": "Add dark mode", "body": "b", "author": {"login": "me"},
+        "labels": [{"name": "factory"}], "state": "OPEN", "url": "u", "comments": [],
+    }))
+elif a[:2] == ["issue", "list"]:
+    print(json.dumps([{"number": 7, "title": "Add dark mode"}]))
+elif a[0] == "api" and a[1].endswith("/git/refs"):
+    # Like GitHub: creating a ref that exists is a 422, whatever sha it points at.
+    kv = dict(x.split("=", 1) for x in a[2:] if "=" in x)
+    git = ["git", "--git-dir", f"{S}/origin.git"]
+    if subprocess.run(git + ["rev-parse", "-q", "--verify", kv["ref"]], capture_output=True).returncode == 0:
+        sys.exit("gh: Reference already exists (HTTP 422)")
+    subprocess.run(git + ["update-ref", kv["ref"], kv["sha"]], check=True)
+elif a[:2] == ["pr", "list"]:
+    prs = f"{S}/prs.json"
+    print(open(prs).read() if os.path.exists(prs) else "[]")
+elif a[:2] == ["pr", "create"]:
+    print("https://example.test/pull/9")
+elif a[0] == "api" and a[1].endswith("/releases/latest"):
+    print(open(f"{S}/release").read().strip())
+elif a[:2] == ["pr", "view"]:
+    print(json.dumps({"state": "MERGED" if os.path.exists(f"{S}/merged") else "OPEN", "isDraft": False}))
+elif a[:2] == ["pr", "merge"]:
+    open(f"{S}/merged", "w").close()
