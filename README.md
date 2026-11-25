@@ -15,7 +15,7 @@ Open Claude Code in your project and paste:
 ```text
 Install this software factory in this project from the reference repository:
 
-https://github.com/meckyp/software-factory
+https://github.com/EvermillAI/software-factory
 ```
 
 Your agent reads [`INSTALL.md`](INSTALL.md), copies the skill, agents, scripts

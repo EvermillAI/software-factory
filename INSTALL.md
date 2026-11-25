@@ -49,8 +49,8 @@ factory/dashboard.html
 ```
 
 ```bash
-TAG=$(gh api repos/meckyp/software-factory/releases/latest --jq .tag_name)
-SRC=https://raw.githubusercontent.com/meckyp/software-factory/$TAG
+TAG=$(gh api repos/EvermillAI/software-factory/releases/latest --jq .tag_name)
+SRC=https://raw.githubusercontent.com/EvermillAI/software-factory/$TAG
 for f in <the paths above>; do
   mkdir -p "$(dirname "$f")" && curl -fsSL "$SRC/$f" -o "$f"
 done

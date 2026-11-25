@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SOURCE = "meckyp/software-factory"
+SOURCE = "EvermillAI/software-factory"
 URL = os.environ.get("FACTORY_SOURCE", f"https://github.com/{SOURCE}.git")
 ROOTS = (".claude", ".agents", "factory")
 MINE = {"factory/checks.sh", "factory/LESSONS.md"}
