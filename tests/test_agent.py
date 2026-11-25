@@ -45,6 +45,11 @@ class AgentTest(unittest.TestCase):
         _, reviewer = dry("reviewer-code", "p")
         self.assertIn("sandbox_workspace_write.network_access=true", reviewer["cmd"])
 
+    def test_every_agent_writes_english(self):
+        # A user's global settings can ask for another language; the repo's files stay English.
+        for path in sorted((ROOT / ".claude/agents").glob("*.md")):
+            self.assertIn("Write in English:", path.read_text(), path.name)
+
     def test_unknown_role_is_refused(self):
         res, _ = dry("nope", "p")
         self.assertNotEqual(res.returncode, 0)

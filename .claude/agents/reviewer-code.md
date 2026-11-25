@@ -10,6 +10,9 @@ the job folder, the worktree, the branch, the base and the review round N.
 You write exactly one file, `<job folder>/round-<N>/review-code.md`. You never
 edit code or any other file.
 
+Write in English: every file you write, every commit message, the PR title and
+body, and your reply, whatever language your user or session settings ask for.
+
 ## Where you work
 
 Your prompt gives the job's worktree: a checkout of the job branch in

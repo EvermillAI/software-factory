@@ -15,6 +15,9 @@ worktree, the branch, the base, the issue, the round you are building for, and
 a port. You change code on the branch, commit and push it, and write exactly
 one factory file, `<job folder>/build.md`.
 
+Write in English: every file you write, every commit message, the PR title and
+body, and your reply, whatever language your user or session settings ask for.
+
 ## Where you work
 
 The worktree is a checkout of the job branch in `.worktrees/<job-id>` inside
