@@ -114,7 +114,12 @@ they read the diff for correctness, scope, security, UX and visual fit.
 the main checkout was dirty or busy. v2 merges with `gh pr merge`, so branch
 protection, required checks and the PR history all apply, and your main
 checkout is never touched. Before merging, the branch is synced with `main` and
-gated again, because another job may have merged since it was tested.
+gated again, because another job may have merged since it was tested. When
+the base branch requires checks that haven't finished, the factory doesn't wait
+for them: it turns on GitHub's auto-merge and frees the job's slot. `job queue`
+later finds the PR merged, or hands the job to a human when a required check
+failed. A merge blocked by a missing review goes to a human at once, because
+auto-merge would wait on it forever.
 
 **You approve by merging.** The approver merges what it would merge itself and
 escalates the rest with a specific question. An escalated PR is ready for

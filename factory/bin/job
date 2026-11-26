@@ -139,7 +139,7 @@ def all_jobs():
 
 def running(jobs):
     """Jobs holding a concurrency slot: every job not finished or waiting."""
-    return [j for j in jobs if j["stage"] not in TERMINAL | WAITING]
+    return [j for j in jobs if j["stage"] not in TERMINAL | WAITING and not awaits_github(j)]
 
 
 def require_slot(job_id):
@@ -396,6 +396,57 @@ def pr_state(job):
     return gh_json("pr", "view", str(job["pr"]), "--json", "state")["state"]
 
 
+def awaits_github(job):
+    """GitHub merges this job's PR once its required checks pass: it holds no slot."""
+    return job["stage"] == "merging" and job.get("auto_merge")
+
+
+def github_merges(job):
+    return f"GitHub merges PR #{job['pr']} when its required checks pass"
+
+
+def hand_to_human(job, why):
+    escalate(job, why)
+    job.pop("auto_merge", None)
+    save(advance(sync(job), "needs-human"))
+    return f"{job['id']}: needs-human: {why.splitlines()[0]}"
+
+
+def required_check_failed(job):
+    res = run(["gh", "pr", "checks", str(job["pr"]), "--required", "--json", "bucket"], check=False)
+    try:
+        return any(c["bucket"] in ("fail", "cancel") for c in json.loads(res.stdout))
+    except ValueError:  # gh prints an error, not JSON, while no check has reported yet
+        return False
+
+
+def await_auto_merge(job):
+    """Look in on a job that awaits GitHub: a failed required check hands it to a
+    human. Returns what happened, for the caller to print."""
+    if required_check_failed(job):
+        gh("pr", "merge", str(job["pr"]), "--disable-auto")
+        return hand_to_human(job, "A required check failed on GitHub, so the PR did not merge. "
+                                  f"See the checks on PR #{job['pr']}.")
+    return f"{job['id']}: waiting: {github_merges(job)}"
+
+
+def merge_pr(job, review):
+    """Merge the PR. False when GitHub will do it later: its required checks are
+    still running. A missing review is a human's move, and auto-merge would wait
+    on it forever, so that refusal stands."""
+    merge = ("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}")
+    try:
+        gh(*merge)
+        return True
+    except Refused:
+        if review in ("REVIEW_REQUIRED", "CHANGES_REQUESTED"):
+            raise
+    gh(*merge, "--auto")
+    job["auto_merge"] = True
+    save(job)
+    return False
+
+
 def early_reviewers(job):
     """Reviewers that only read the code, so they run while the gate does."""
     return [r for r in reviewers(job) if r not in CONFIG["reviewers_after_gate"]]
@@ -621,6 +672,8 @@ def cmd_queue():
     for j in jobs.values():
         if j["stage"] not in TERMINAL and j["pr"] and pr_state(j) == "MERGED":
             save(advance(sync(j), "merged"))
+        elif awaits_github(j):
+            await_auto_merge(j)
     issues = gh_json("issue", "list", "--label", LABELS["queue"], "--state", "open",
                      "--limit", "200", "--json", "number,title")
     open_numbers = {i["number"] for i in issues}
@@ -642,6 +695,8 @@ def cmd_queue():
         elif j["stage"] == "needs-human":
             other_rows.append(("wait", n, j["id"], j["stage"], f"merge PR #{j['pr']}, or give feedback"
                                if j["pr"] else "give feedback"))
+        elif awaits_github(j):
+            other_rows.append(("wait", n, j["id"], j["stage"], github_merges(j)))
         elif j["stage"] == "rejected":
             other_rows.append(("skip", n, j["id"], j["stage"], f"rejected; delete factory/jobs/{j['id']} to retry"))
         elif retro_due(j):
@@ -681,10 +736,11 @@ def cmd_merge(job):
         print(f"{job['id']}: merged PR #{job['pr']}")
         return
 
+    if awaits_github(job):
+        return print(await_auto_merge(job))
+
     def fail(why):
-        escalate(job, why)
-        save(advance(sync(job), "needs-human"))
-        print(f"{job['id']}: needs-human: {why.splitlines()[0]}")
+        print(hand_to_human(job, why))
 
     git(job, "fetch", "origin", BASE)
     merged = git(job, "merge", "--no-edit", f"origin/{BASE}", check=False)
@@ -697,9 +753,11 @@ def cmd_merge(job):
                     f"See round-{job['round']}/merge-checks.md.\n\n{gate.stdout.strip()}")
     try:
         git(job, "push", "origin", job["branch"])
-        if gh_json("pr", "view", str(job["pr"]), "--json", "isDraft")["isDraft"]:
+        pr = gh_json("pr", "view", str(job["pr"]), "--json", "isDraft,reviewDecision")
+        if pr["isDraft"]:
             gh("pr", "ready", str(job["pr"]))
-        gh("pr", "merge", str(job["pr"]), f"--{CONFIG['merge_method']}")
+        if not merge_pr(job, pr["reviewDecision"]):
+            return print(await_auto_merge(job))
     except Refused as e:
         return fail(f"The merge failed:\n\n```\n{e}\n```")
     save(advance(sync(job), "merged"))

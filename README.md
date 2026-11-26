@@ -50,6 +50,7 @@ gate (script) ─FAIL──┤  factory/checks.sh, while the reviewers that only
 reviewers ─CHANGES───┘  code (haiku | sonnet), + ux & ui on UI changes, + security
         ▼ all PASS
 approver (opus) ── APPROVE  → sync with main, gate again if main moved, gh pr merge
+                │             (auto-merge when required checks are still running)
                 └─ ESCALATE → PR ready for you, issue labeled factory:needs-human
         ▼ merged, after more than one round or after your feedback
 retro (sonnet) → a PR with new rules in factory/LESSONS.md, for you to merge

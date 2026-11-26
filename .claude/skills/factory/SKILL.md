@@ -174,7 +174,11 @@ with the same prompt plus the port. **WAIT FOR ALL**, and run
 
 - `APPROVE`: `factory/bin/job merge <id>`. It syncs the branch with the base,
   runs the gate again if that brought anything in, pushes, and merges the PR, ending in `merged`. If any
-  of that fails it moves the job to `needs-human` and says why.
+  of that fails it moves the job to `needs-human` and says why. When the base
+  branch requires checks that are still running, it turns on GitHub's
+  auto-merge and prints `waiting`: the job is finished for this run, holds no
+  slot and shows as `wait` in `job queue`. A later `job queue` moves it to
+  `merged`, or to `needs-human` when a required check failed.
 - `ESCALATE`: `factory/bin/job advance <id> needs-human`. It marks the PR ready,
   posts the decision on it and labels the issue `factory:needs-human`.
 
@@ -225,7 +229,8 @@ respawn their agent; `build` spawns a new builder told it is resuming (it reads
 `build.md` and `git log` to see how far the last one got); `gate` runs the
 gate; `review` spawns only the reviewers whose `review-<r>.md` is missing in
 the current round; `approve` respawns the approver; `merging` runs
-`factory/bin/job merge <id>`. A `needs-info` job the author has answered shows
+`factory/bin/job merge <id>` (a `wait` row in `merging` needs nothing: GitHub
+merges it). A `needs-info` job the author has answered shows
 as `resume`: run `factory/bin/job advance <id> intake` and go to **intake**.
 
 ## /factory run <n>
