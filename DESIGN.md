@@ -25,7 +25,7 @@ skim a job on the dashboard and read the detail only where it matters.
 | Claim | branch `factory/<issue>` on origin | Which machine has the issue. Created by `job create`, deleted when the job is merged or rejected. |
 | Codex runner | `factory/bin/agent`, `.agents/skills/factory/SKILL.md` | Runs the same agent files with `codex exec` when the orchestrator is Codex. |
 | Spine | `factory/bin/job`, `gate`, `route` | Deterministic. `job` is the only writer of `job.json` and refuses illegal moves. |
-| Lessons | `factory/LESSONS.md`, `.claude/agents/retro.md` | Rules from earlier jobs, read by every later spec-writer, builder and reviewer. Changed only by a retro PR a person merges. |
+| Lessons | `factory/LESSONS.md`, `.claude/agents/retro.md` | Rules from earlier jobs, read by every later spec-writer, builder and reviewer. Changed only by a retro PR, merged by a person or, with `merge_lessons` on, by the factory. |
 | Update | `factory/bin/update`, `factory/VERSION` | Moves the installed files to a newer release with a three-way merge per file, so the project's tailoring stays. Never touches `checks.sh` or `LESSONS.md`, never commits. |
 | Checks | `factory/checks.sh` | The repo's test, lint, typecheck and build commands. The only repo-specific script. |
 | Exit | the PR | Every job ends as a PR that closes its issue. Merging it is the approval. |
@@ -191,11 +191,22 @@ in the repo. Such a rule is an instruction nobody reviewed, and the reviews it
 is drawn from can quote the issue, so three things keep it honest. The retro
 agent has no shell and may change one file; `job retro finish` refuses a diff
 that touches anything else or holds more than `max_lessons` rules. The change
-lands as a PR on `retro/<issue>` that the factory never merges. And
+lands as a PR on `retro/<issue>` that the factory doesn't merge. And
 `LESSONS.md` is a protected path, so a job's own branch can't edit it. Only
 merged jobs with more than one round or with feedback get a retro: a job that
 passed first time has nothing to teach, and a rejected one never reached
 review.
+
+**`merge_lessons` trades that review for a factory that learns unattended.**
+Lessons PRs nobody merges teach nothing: every retro starts from the same
+empty file, repeats the last one's rules, and the PRs conflict with each
+other. With `merge_lessons` on, `job retro finish` merges the PR, through
+GitHub auto-merge when required checks are still running, so the next retro
+reads the last one's rules and `max_lessons` makes it merge or drop old ones.
+A lessons PR whose required check fails just stays open for a person; nothing
+tracks it. The other two limits stay. What goes is the person reading a rule before it
+counts, so it is off by default; a rule is one commit that names its issue,
+and reverting it drops the rule.
 
 ## Guardrails
 
@@ -206,6 +217,7 @@ review.
   prompt. Intake, which reads it first, has no shell.
 - Agents push only `factory/*` branches. Only `factory/bin/job merge` merges,
   through `gh pr merge`. The factory never deploys.
-- `factory/LESSONS.md` changes only through a retro PR that a person merges.
+- `factory/LESSONS.md` changes only through a retro PR. A person merges it,
+  unless `merge_lessons` is on.
 - One PR per issue; at most `max_rounds` build rounds per job before a human
   is asked.

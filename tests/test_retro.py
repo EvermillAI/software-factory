@@ -68,6 +68,33 @@ class RetroTest(TwoClones):
         self.assertEqual(self.state()["retro"], "https://example.test/pull/9")
         self.assertFalse(self.tree.exists())
 
+    def merge_lessons(self):
+        path = self.a / "factory/config.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), "merge_lessons": True}))
+        self.start()
+        self.learn()
+        res = self.job(self.a, "retro", "7", "finish")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(self.state()["retro"], "https://example.test/pull/9")
+        return res
+
+    def test_with_merge_lessons_the_factory_merges_the_pr_itself(self):
+        res = self.merge_lessons()
+        self.assertIn("pr merge https://example.test/pull/9 --merge\n", self.log())
+        self.assertIn("merged", res.stdout)
+
+    def test_with_merge_lessons_github_merges_once_required_checks_pass(self):
+        (self.tmp / "protected").touch()
+        res = self.merge_lessons()
+        self.assertIn("pr merge https://example.test/pull/9 --merge --auto\n", self.log())
+        self.assertIn("checks pass", res.stdout)
+
+    def test_a_refused_lessons_merge_leaves_the_pr_to_a_person(self):
+        (self.tmp / "protected").touch()
+        (self.tmp / "no-auto").touch()
+        res = self.merge_lessons()
+        self.assertIn("refused", res.stdout)
+
     def test_finish_without_changes_opens_nothing(self):
         self.start()
         res = self.job(self.a, "retro", "7", "finish")

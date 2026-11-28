@@ -46,5 +46,7 @@ elif a[:2] == ["pr", "merge"]:
     # $FAKE_GH/protected: the base branch has required checks that haven't passed.
     if "--auto" not in a and "--disable-auto" not in a and os.path.exists(f"{S}/protected"):
         sys.exit("X Pull request #3 is not mergeable: the base branch policy prohibits the merge.")
+    if "--auto" in a and os.path.exists(f"{S}/no-auto"):  # the repo doesn't allow auto-merge
+        sys.exit("GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)")
     if not os.path.exists(f"{S}/protected"):
         open(f"{S}/merged", "w").close()

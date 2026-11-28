@@ -70,7 +70,9 @@ reviewers read that file at the start of every job, on every computer and on
 every agent CLI.
 
 The retro never changes the file on `main`. It opens a pull request, and a rule
-counts once you merge it. The file holds at most `max_lessons` rules (default
+counts once you merge it. Set `"merge_lessons": true` in `factory/config.json`
+and the factory merges that pull request itself, so each retro builds on the
+last one's rules and you drop a rule by reverting its commit. The file holds at most `max_lessons` rules (default
 30); past that the retro has to merge or drop old ones. A job that passed in
 one round gets no retro.
 
@@ -218,7 +220,8 @@ you're billed.
   access can add labels. Issue text reaches the agents as quoted data, never
   as their instructions.
 - The factory pushes only `factory/*` and `retro/*` branches, merges only
-  through `gh pr merge`, and never deploys. It never merges a lessons PR.
+  through `gh pr merge`, and never deploys. It merges a lessons PR only when
+  you turned `merge_lessons` on.
 
 ## License
 

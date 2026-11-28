@@ -807,10 +807,26 @@ def retro_row(job):
     return ("retro", job["issue"], job["id"], job["stage"], "learn from this job")
 
 
+def merge_lessons(pr):
+    """Merge a lessons PR now, or let GitHub do it once its required checks pass.
+    A refusal leaves the PR open for a person: nothing waits on it."""
+    merge = ("pr", "merge", pr, f"--{CONFIG['merge_method']}")
+    try:
+        gh(*merge)
+        return "merged"
+    except Refused:
+        pass
+    try:
+        gh(*merge, "--auto")
+        return "GitHub merges it when its required checks pass"
+    except Refused as e:
+        return f"GitHub refused the merge, so it waits for you: {str(e).splitlines()[-1]}"
+
+
 def cmd_retro(job, step):
     """The retro agent edits LESSONS in a worktree of its own. The lessons reach
-    every later agent's prompt, so they land as a PR a person merges, never
-    through the factory."""
+    every later agent's prompt, so they land as a PR a person merges, unless
+    `merge_lessons` says the factory merges it."""
     require(job["stage"] == "merged", f"{job['id']} is {job['stage']}, not merged")
     require(not job.get("retro"), f"{job['id']} had its retro: {job.get('retro')}")
     if not retro_due(job):
@@ -829,6 +845,8 @@ def cmd_retro(job, step):
     status = run(["git", "status", "--porcelain", "-uall"], cwd=tree).stdout.splitlines()
     other = sorted({line[3:] for line in status} - {LESSONS})
     require(not other, f"retro may only change {LESSONS}; it also changed: {', '.join(other)}")
+    # .get: a config from before this key means a person merges
+    auto = bool(status) and CONFIG.get("merge_lessons")
     if status:
         require((tree / LESSONS).exists(), f"retro deleted {LESSONS}")
         count = len(re.findall(r"^- ", (tree / LESSONS).read_text(), re.M))
@@ -838,15 +856,18 @@ def cmd_retro(job, step):
         run(["git", "add", LESSONS], cwd=tree)
         run(["git", "commit", "-qm", title], cwd=tree)
         run(["git", "push", "origin", branch], cwd=tree)
+        whose = ("the factory merges this itself (`merge_lessons`). Revert the commit to drop a rule."
+                 if auto else "merge only the rules you agree with.")
         job["retro"] = gh("pr", "create", "--base", BASE, "--head", branch, "--title", title, "--body",
                           f"What the factory learned from #{job['issue']} ({job['id']}). Every agent reads "
-                          f"`{LESSONS}`, so merge only the rules you agree with.").strip()
+                          f"`{LESSONS}`, so {whose}").strip()
     else:
         job["retro"] = "none"
     run(["git", "worktree", "remove", "--force", str(tree)])
     run(["git", "branch", "-D", branch], check=False)
     save(job)
-    print(f"{job['id']}: retro {job['retro']}")
+    note = f" ({merge_lessons(job['retro'])})" if auto else ""
+    print(f"{job['id']}: retro {job['retro']}{note}")
 
 
 def cmd_agents(job, spec):

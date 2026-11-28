@@ -35,6 +35,7 @@ approver (opus)    → APPROVE: sync origin/<base>, gate again if that moved the
                      ESCALATE: PR ready, decision as PR comment, label factory:needs-human
 retro (sonnet)     → after a merged job with more than one round or with feedback:
                      a PR that adds rules to factory/LESSONS.md, for the user to merge
+                     (with `merge_lessons` on, `job retro finish` merges it)
 ```
 
 A job has at most `max_rounds` build rounds (`config.json`); a round is one
@@ -192,7 +193,10 @@ When it returns, run `factory/bin/job retro <id> finish`. It checks that only
 prints `retro none`. If it refuses, send the refusal to a new `retro` once; if
 it refuses again, tell the user. Never merge a lessons PR and never edit
 `LESSONS.md` yourself: the rules in it reach every later agent, so the user
-decides which ones count. A retro doesn't hold a concurrency slot.
+decides which ones count. With `merge_lessons` on in `config.json`, `finish`
+merges the PR itself and says so after the URL; if it says GitHub refused, the
+PR waits for the user. Run one retro at a time then: two that overlap both
+start from the same `LESSONS.md` and the second PR conflicts. A retro doesn't hold a concurrency slot.
 
 A job is finished for this run when it reaches `merged`, `rejected`,
 `needs-info` or `needs-human`, and its retro, if it gets one, is done.
@@ -319,4 +323,5 @@ new feature, ask.
   `factory/bin/job merge`, which uses `gh pr merge`. The factory never deploys.
 - One PR per issue, at most `max_rounds` rounds per job.
 - Lessons reach every later agent. They change only through a retro PR that
-  the user merges.
+  the user merges, or that `job retro finish` merges when the user turned
+  `merge_lessons` on.
